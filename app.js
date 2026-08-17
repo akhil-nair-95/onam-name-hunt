@@ -129,10 +129,25 @@ export async function upvoteName(nameId) {
 
 /** Live subscription to the full names list, sorted by votes desc. */
 export function subscribeToNames(cb) {
-  const q = query(collection(db, "names"), orderBy("votes", "desc"), orderBy("submittedAt", "asc"));
+  // Sorting by a single field (votes) needs no manually-created index —
+  // Firestore maintains single-field indexes automatically. Sorting by
+  // votes AND submittedAt together would require a composite index to be
+  // created by hand in the console, so we sort only by votes here and
+  // break ties client-side instead (see sortNames below).
+  const q = query(collection(db, "names"), orderBy("votes", "desc"));
   return onSnapshot(q, (snap) => {
     const names = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-    cb(names);
+    cb(sortNames(names));
+  });
+}
+
+/** Sort by votes desc, breaking ties by earliest submission first. */
+function sortNames(names) {
+  return [...names].sort((a, b) => {
+    if ((b.votes || 0) !== (a.votes || 0)) return (b.votes || 0) - (a.votes || 0);
+    const at = a.submittedAt ? a.submittedAt.toMillis() : 0;
+    const bt = b.submittedAt ? b.submittedAt.toMillis() : 0;
+    return at - bt;
   });
 }
 
