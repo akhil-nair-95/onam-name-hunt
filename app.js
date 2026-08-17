@@ -1,0 +1,193 @@
+// Shared data layer for both index.html and admin.html.
+// Uses the Firebase v10 modular SDK loaded straight from Google's CDN as
+// ES modules — no build step, no npm install, works as plain static files.
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import {
+  getAuth, signInAnonymously, onAuthStateChanged,
+  signInWithEmailAndPassword, signOut
+} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import {
+  getFirestore, collection, doc, addDoc, getDoc, getDocs, setDoc, updateDoc,
+  onSnapshot, query, where, orderBy, serverTimestamp, runTransaction
+} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+import { firebaseConfig } from "./firebase-config.js";
+
+const app = initializeApp(firebaseConfig);
+export const auth = getAuth(app);
+export const db = getFirestore(app);
+
+const STATUS_REF = doc(db, "contest", "status");
+
+// ---------------------------------------------------------------------------
+// Auth
+// ---------------------------------------------------------------------------
+
+// Resolves once we have SOME signed-in user (anonymous is fine for the
+// public page). Every call site awaits this before touching Firestore.
+let readyResolve;
+export const authReady = new Promise((res) => { readyResolve = res; });
+
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    readyResolve(user);
+  } else {
+    signInAnonymously(auth).catch((err) => {
+      console.error("Anonymous sign-in failed", err);
+    });
+  }
+});
+
+export function getUid() {
+  return authReady.then((u) => u.uid);
+}
+
+export function adminSignIn(email, password) {
+  return signInWithEmailAndPassword(auth, email, password);
+}
+
+export function adminSignOut() {
+  return signOut(auth);
+}
+
+export function onAuthChange(cb) {
+  return onAuthStateChanged(auth, cb);
+}
+
+// ---------------------------------------------------------------------------
+// Names: submit, vote, live list
+// ---------------------------------------------------------------------------
+
+function normalize(text) {
+  return text.trim().replace(/\s+/g, " ");
+}
+
+/**
+ * Submits a new name, OR — if an identical name (case-insensitive) already
+ * exists — casts a vote for that existing one instead. Either way, the
+ * current device's own vote is recorded as part of the same action.
+ *
+ * Returns { nameId, alreadyExisted, alreadyVoted }.
+ */
+export async function submitOrVoteName(rawText) {
+  const text = normalize(rawText);
+  if (!text) throw new Error("EMPTY_NAME");
+  if (text.length > 60) throw new Error("TOO_LONG");
+
+  const uid = await getUid();
+  const textLower = text.toLowerCase();
+
+  const existing = await getDocs(
+    query(collection(db, "names"), where("textLower", "==", textLower))
+  );
+
+  if (!existing.empty) {
+    const existingDoc = existing.docs[0];
+    const result = await castVote(existingDoc.id, uid);
+    return { nameId: existingDoc.id, alreadyExisted: true, alreadyVoted: !result.voted };
+  }
+
+  const nameRef = await addDoc(collection(db, "names"), {
+    text,
+    textLower,
+    votes: 0,
+    submittedBy: uid,
+    submittedAt: serverTimestamp(),
+  });
+
+  await castVote(nameRef.id, uid);
+  return { nameId: nameRef.id, alreadyExisted: false, alreadyVoted: false };
+}
+
+/**
+ * Casts uid's vote for nameId, if they haven't already.
+ * Returns { voted: boolean } — voted is false if they'd already voted before.
+ */
+export async function castVote(nameId, uid) {
+  const nameRef = doc(db, "names", nameId);
+  const voterRef = doc(db, "names", nameId, "voters", uid);
+
+  return runTransaction(db, async (tx) => {
+    const voterSnap = await tx.get(voterRef);
+    if (voterSnap.exists()) {
+      return { voted: false };
+    }
+    const nameSnap = await tx.get(nameRef);
+    if (!nameSnap.exists()) throw new Error("NAME_NOT_FOUND");
+
+    tx.set(voterRef, { votedAt: serverTimestamp() });
+    tx.update(nameRef, { votes: nameSnap.data().votes + 1 });
+    return { voted: true };
+  });
+}
+
+export async function upvoteName(nameId) {
+  const uid = await getUid();
+  return castVote(nameId, uid);
+}
+
+/** Live subscription to the full names list, sorted by votes desc. */
+export function subscribeToNames(cb) {
+  const q = query(collection(db, "names"), orderBy("votes", "desc"), orderBy("submittedAt", "asc"));
+  return onSnapshot(q, (snap) => {
+    const names = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    cb(names);
+  });
+}
+
+/** Which of the given nameIds has the current device already voted for? */
+export async function getVotedSet(nameIds) {
+  const uid = await getUid();
+  const checks = await Promise.all(
+    nameIds.map(async (id) => {
+      const snap = await getDoc(doc(db, "names", id, "voters", uid));
+      return [id, snap.exists()];
+    })
+  );
+  return new Set(checks.filter(([, voted]) => voted).map(([id]) => id));
+}
+
+// ---------------------------------------------------------------------------
+// Contest status
+// ---------------------------------------------------------------------------
+
+export function subscribeToStatus(cb) {
+  return onSnapshot(STATUS_REF, (snap) => {
+    cb(snap.exists() ? snap.data() : { isOpen: true, winnerNameId: null, winnerMethod: null });
+  });
+}
+
+export async function ensureStatusDoc() {
+  const snap = await getDoc(STATUS_REF);
+  if (!snap.exists()) {
+    await setDoc(STATUS_REF, { isOpen: true, winnerNameId: null, winnerMethod: null, decidedAt: null });
+  }
+}
+
+export function setContestOpen(isOpen) {
+  return updateDoc(STATUS_REF, { isOpen });
+}
+
+export function declareWinner(nameId, method) {
+  return updateDoc(STATUS_REF, {
+    winnerNameId: nameId,
+    winnerMethod: method,
+    isOpen: false,
+    decidedAt: serverTimestamp(),
+  });
+}
+
+export function resetContest() {
+  return updateDoc(STATUS_REF, {
+    winnerNameId: null,
+    winnerMethod: null,
+    isOpen: true,
+    decidedAt: null,
+  });
+}
+
+export async function getAllNamesOnce() {
+  const snap = await getDocs(collection(db, "names"));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}

@@ -1,0 +1,110 @@
+rules_version = '2';
+
+// ============================================================================
+// ONAM NAME HUNT — Firestore security rules
+//
+// Data model:
+//   /names/{nameId}
+//       text         string   — the submitted name, as typed
+//       textLower    string   — lowercased/trimmed, used for duplicate checks
+//       votes        number   — cached count of docs in the voters subcollection
+//       submittedBy  string   — uid of the person who submitted it
+//       submittedAt  timestamp
+//
+//   /names/{nameId}/voters/{uid}
+//       votedAt      timestamp
+//       (the mere existence of this doc means `uid` has voted for this name)
+//
+//   /contest/status   (single fixed doc)
+//       isOpen         boolean
+//       winnerNameId   string | null
+//       winnerMethod   'random' | 'votes' | null
+//       decidedAt      timestamp | null
+//
+// Auth model:
+//   - Every visitor is signed in anonymously (invisible, automatic) so we have
+//     a stable uid per device/browser to key votes against.
+//   - Exactly one admin account exists (email/password), matched by uid below.
+// ============================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return request.auth != null && request.auth.uid == "BQQ3YYLGZrTE2YDvdBv3PtDUhJi2";
+    }
+
+    // NOTE: this function must live inside this match block — it's the only
+    // place `database` (bound by `match /databases/{database}/documents`
+    // above) is actually in scope for the get() path below.
+    function contestIsOpen() {
+      return get(/databases/$(database)/documents/contest/status).data.isOpen == true;
+    }
+
+    // ---------------- names ----------------
+    match /names/{nameId} {
+      allow read: if isSignedIn();
+
+      // Anyone signed in (anonymous is fine) may submit a new name while
+      // the contest is open. New docs must start at 0 votes — the actual
+      // first vote is cast as a separate, immediate write to the voters
+      // subcollection (see app.js), which is what bumps votes to 1.
+      allow create: if isSignedIn()
+                    && contestIsOpen()
+                    && request.resource.data.submittedBy == request.auth.uid
+                    && request.resource.data.votes == 0
+                    && request.resource.data.text is string
+                    && request.resource.data.text.size() > 0
+                    && request.resource.data.text.size() <= 60
+                    && request.resource.data.textLower is string;
+
+      // The only update ever allowed on a name doc is incrementing votes by
+      // exactly 1 (done alongside creating a voter doc — see below). No
+      // other field may change, and it only works while voting is open.
+      allow update: if isSignedIn()
+                    && contestIsOpen()
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['votes'])
+                    && request.resource.data.votes == resource.data.votes + 1;
+
+      allow delete: if false; // moderate spam manually from the console if ever needed
+
+      match /voters/{uid} {
+        allow read: if isSignedIn();
+
+        // A user may only ever create their OWN voter doc, and only once —
+        // Firestore treats this as a `create` only when the doc doesn't
+        // already exist, so a repeat attempt is rejected automatically.
+        allow create: if isSignedIn()
+                      && request.auth.uid == uid
+                      && contestIsOpen();
+
+        allow update: if false;
+        allow delete: if false;
+      }
+    }
+
+    // ---------------- contest status ----------------
+    match /contest/status {
+      allow read: if isSignedIn();
+
+      // Bootstrap: the FIRST visitor to ever load the app (any signed-in
+      // user, admin or not) is allowed to create this doc — but only with
+      // safe, wide-open default values. Firestore treats this as `create`
+      // only when the doc doesn't already exist, so this can't be used to
+      // reset an existing contest.
+      allow create: if isSignedIn()
+                    && request.resource.data.isOpen == true
+                    && request.resource.data.winnerNameId == null
+                    && request.resource.data.winnerMethod == null;
+
+      // Anything after that — closing voting, declaring a winner,
+      // resetting — is admin-only.
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+  }
+}

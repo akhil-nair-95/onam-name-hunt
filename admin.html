@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="ml">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin · ഓണം നെയിം ഹണ്ട്</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="wrap">
+    <header class="site-header">
+      <p class="kicker">✦ Admin ✦</p>
+      <h1 style="font-size:clamp(24px,6vw,34px)">ഓണം നെയിം ഹണ്ട്</h1>
+    </header>
+
+    <section class="card admin-login" id="loginCard">
+      <h2 class="list-title">Admin login</h2>
+      <label for="email">Email</label>
+      <input type="email" id="email" autocomplete="username">
+      <label for="password">Password</label>
+      <input type="password" id="password" autocomplete="current-password">
+      <div class="action-row">
+        <button class="btn" id="loginBtn">Log in</button>
+      </div>
+      <div class="form-msg error" id="loginMsg"></div>
+    </section>
+
+    <div id="adminPanel" style="display:none">
+      <div class="admin-bar">
+        <div class="who">Signed in as <strong id="whoEmail"></strong></div>
+        <button class="btn ghost" id="logoutBtn">Log out</button>
+      </div>
+
+      <section class="card">
+        <h2 class="list-title">
+          Contest status
+          <span class="status-pill" id="statusPill"></span>
+        </h2>
+        <div class="action-row">
+          <button class="btn secondary" id="toggleOpenBtn"></button>
+        </div>
+      </section>
+
+      <section class="card" id="winnerSection"></section>
+
+      <section class="card">
+        <h2 class="list-title">Decide the winner</h2>
+        <p style="font-size:14px;color:var(--ink-soft);margin-top:-6px">
+          Pick one method. This closes voting and announces the result on the public page immediately.
+        </p>
+        <div class="action-row">
+          <button class="btn" id="randomPickBtn">🎲 Random pick (equal chance)</button>
+          <button class="btn secondary" id="votesPickBtn">🏆 Highest votes</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2 class="list-title">All submitted names (<span id="countLabel">0</span>)</h2>
+        <div id="adminNamesList"></div>
+      </section>
+    </div>
+  </div>
+
+  <script type="module">
+    import {
+      auth, adminSignIn, adminSignOut, onAuthChange,
+      subscribeToNames, subscribeToStatus, ensureStatusDoc,
+      setContestOpen, declareWinner, resetContest, getAllNamesOnce
+    } from "./app.js";
+
+    const loginCard = document.getElementById("loginCard");
+    const adminPanel = document.getElementById("adminPanel");
+    const emailEl = document.getElementById("email");
+    const passwordEl = document.getElementById("password");
+    const loginBtn = document.getElementById("loginBtn");
+    const loginMsg = document.getElementById("loginMsg");
+    const whoEmail = document.getElementById("whoEmail");
+    const logoutBtn = document.getElementById("logoutBtn");
+
+    const statusPill = document.getElementById("statusPill");
+    const toggleOpenBtn = document.getElementById("toggleOpenBtn");
+    const winnerSection = document.getElementById("winnerSection");
+    const randomPickBtn = document.getElementById("randomPickBtn");
+    const votesPickBtn = document.getElementById("votesPickBtn");
+    const adminNamesList = document.getElementById("adminNamesList");
+    const countLabel = document.getElementById("countLabel");
+
+    function escapeHtml(s) {
+      return s.replace(/[&<>"']/g, (c) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      }[c]));
+    }
+
+    let latestNames = [];
+    let latestStatus = { isOpen: true, winnerNameId: null, winnerMethod: null };
+    let isAuthedAdmin = false;
+
+    onAuthChange((user) => {
+      // Anonymous users (uid but no email) never unlock the admin panel —
+      // this is a UX convenience only. The real gate is firestore.rules,
+      // which checks the signed-in uid against the hardcoded admin uid.
+      isAuthedAdmin = !!(user && user.email);
+      loginCard.style.display = isAuthedAdmin ? "none" : "";
+      adminPanel.style.display = isAuthedAdmin ? "" : "none";
+      if (isAuthedAdmin) {
+        whoEmail.textContent = user.email;
+        boot();
+      }
+    });
+
+    loginBtn.addEventListener("click", async () => {
+      loginMsg.textContent = "";
+      loginBtn.disabled = true;
+      try {
+        await adminSignIn(emailEl.value.trim(), passwordEl.value);
+      } catch (err) {
+        loginMsg.textContent = "Login failed — check the email and password.";
+        console.error(err);
+      } finally {
+        loginBtn.disabled = false;
+      }
+    });
+
+    logoutBtn.addEventListener("click", () => adminSignOut());
+
+    let booted = false;
+    function boot() {
+      if (booted) return;
+      booted = true;
+      ensureStatusDoc();
+      subscribeToNames((names) => { latestNames = names; render(); });
+      subscribeToStatus((status) => { latestStatus = status; render(); });
+    }
+
+    function render() {
+      statusPill.textContent = latestStatus.isOpen ? "OPEN" : "CLOSED";
+      statusPill.className = "status-pill " + (latestStatus.isOpen ? "open" : "closed");
+      toggleOpenBtn.textContent = latestStatus.isOpen ? "Close submissions & voting" : "Reopen submissions & voting";
+
+      if (latestStatus.winnerNameId) {
+        const winner = latestNames.find((n) => n.id === latestStatus.winnerNameId);
+        winnerSection.innerHTML = `
+          <h2 class="list-title">🎉 Winner declared</h2>
+          <p style="font-size:22px;font-weight:700;color:var(--green-800)">${winner ? escapeHtml(winner.text) : "…"}</p>
+          <p style="font-size:13.5px;color:var(--ink-soft)">Method: ${latestStatus.winnerMethod}</p>
+          <button class="btn ghost" id="resetBtn">Reset & choose again</button>`;
+        document.getElementById("resetBtn").addEventListener("click", async () => {
+          if (confirm("Clear the winner and reopen voting?")) await resetContest();
+        });
+      } else {
+        winnerSection.innerHTML = `<p style="font-size:14px;color:var(--ink-soft)">No winner declared yet.</p>`;
+      }
+
+      countLabel.textContent = latestNames.length;
+      if (latestNames.length === 0) {
+        adminNamesList.innerHTML = '<p class="empty-msg">No submissions yet.</p>';
+      } else {
+        const sorted = [...latestNames].sort((a, b) => (b.votes || 0) - (a.votes || 0));
+        adminNamesList.innerHTML = sorted.map((n, i) => `
+          <div class="name-row">
+            <span class="rank">${i + 1}</span>
+            <span class="text">${escapeHtml(n.text)}</span>
+            <span class="vote-btn" style="pointer-events:none">👍 ${n.votes || 0}</span>
+          </div>`).join("");
+      }
+    }
+
+    toggleOpenBtn.addEventListener("click", async () => {
+      toggleOpenBtn.disabled = true;
+      try { await setContestOpen(!latestStatus.isOpen); }
+      finally { toggleOpenBtn.disabled = false; }
+    });
+
+    randomPickBtn.addEventListener("click", async () => {
+      const names = await getAllNamesOnce();
+      if (names.length === 0) { alert("No names submitted yet."); return; }
+      if (!confirm(`Randomly pick from all ${names.length} names and close voting now?`)) return;
+      const pick = names[Math.floor(Math.random() * names.length)];
+      await declareWinner(pick.id, "random");
+    });
+
+    votesPickBtn.addEventListener("click", async () => {
+      const names = await getAllNamesOnce();
+      if (names.length === 0) { alert("No names submitted yet."); return; }
+      const maxVotes = Math.max(...names.map((n) => n.votes || 0));
+      const topNames = names.filter((n) => (n.votes || 0) === maxVotes);
+      const pick = topNames[Math.floor(Math.random() * topNames.length)]; // random tie-break
+      const tieNote = topNames.length > 1 ? ` (tie between ${topNames.length} names, picked randomly)` : "";
+      if (!confirm(`Declare "${pick.text}" (${maxVotes} votes) as the winner${tieNote} and close voting?`)) return;
+      await declareWinner(pick.id, "votes");
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="ml">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ഓണം നെയിം ഹണ്ട്</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="wrap">
+    <header class="site-header">
+      <p class="kicker">✦ ഒരു പുതിയ ആവേശം! ✦</p>
+      <h1>ഓണം<br><span class="accent">നെയിം ഹണ്ട്</span></h1>
+      <p class="sub">നിങ്ങളുടെ ഏറ്റവും മികച്ച പേര് നിർദ്ദേശിക്കൂ, മറ്റുള്ളവരുടെ പേരുകൾക്ക് വോട്ട് ചെയ്യൂ!</p>
+    </header>
+
+    <div id="statusBanner"></div>
+    <div id="winnerCard"></div>
+
+    <section class="card" id="formCard">
+      <form class="submit-form" id="submitForm" autocomplete="off">
+        <input type="text" id="nameInput" placeholder="നിങ്ങളുടെ പേര് നിർദ്ദേശം..." maxlength="60" required>
+        <button type="submit" class="btn" id="submitBtn">സമർപ്പിക്കൂ</button>
+        <div class="form-msg" id="formMsg"></div>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2 class="list-title">നിർദ്ദേശിക്കപ്പെട്ട പേരുകൾ</h2>
+      <div id="namesList"></div>
+    </section>
+
+    <p class="footer-note">ഓരോ ഉപകരണത്തിനും ഒരു പേരിന് ഒരു വോട്ട് മാത്രം.</p>
+  </div>
+
+  <script type="module">
+    import {
+      subscribeToNames, subscribeToStatus, submitOrVoteName, upvoteName,
+      getVotedSet, ensureStatusDoc, getUid
+    } from "./app.js";
+
+    const namesListEl = document.getElementById("namesList");
+    const statusBannerEl = document.getElementById("statusBanner");
+    const winnerCardEl = document.getElementById("winnerCard");
+    const formCardEl = document.getElementById("formCard");
+    const formEl = document.getElementById("submitForm");
+    const inputEl = document.getElementById("nameInput");
+    const submitBtnEl = document.getElementById("submitBtn");
+    const formMsgEl = document.getElementById("formMsg");
+
+    let latestNames = [];
+    let latestStatus = { isOpen: true, winnerNameId: null, winnerMethod: null };
+
+    function escapeHtml(s) {
+      return s.replace(/[&<>"']/g, (c) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      }[c]));
+    }
+
+    function methodLabel(method) {
+      if (method === "random") return "🎲 ക്രമരഹിതമായി തിരഞ്ഞെടുത്തത്";
+      if (method === "votes") return "🏆 ഏറ്റവും കൂടുതൽ വോട്ട് നേടിയത്";
+      return "";
+    }
+
+    async function renderNames() {
+      if (latestNames.length === 0) {
+        namesListEl.innerHTML = '<p class="empty-msg">ഇതുവരെ പേരുകളൊന്നും നിർദ്ദേശിച്ചിട്ടില്ല. ആദ്യത്തെയാളാകൂ!</p>';
+        return;
+      }
+      const voted = await getVotedSet(latestNames.map((n) => n.id));
+      namesListEl.innerHTML = latestNames.map((n, i) => {
+        const isVoted = voted.has(n.id);
+        return `
+          <div class="name-row">
+            <span class="rank">${i + 1}</span>
+            <span class="text">${escapeHtml(n.text)}</span>
+            <button class="vote-btn ${isVoted ? "voted" : ""}" data-id="${n.id}" ${!latestStatus.isOpen ? "disabled" : ""}>
+              👍 <span>${n.votes || 0}</span>
+            </button>
+          </div>`;
+      }).join("");
+    }
+
+    function renderStatus() {
+      if (latestStatus.isOpen) {
+        statusBannerEl.innerHTML = `
+          <div class="banner open">
+            സമർപ്പിക്കാനും വോട്ട് ചെയ്യാനും ഇപ്പോൾ സമയമുണ്ട്!<br>
+            <span class="deadline">ഓഗസ്റ്റ് 20 · വൈകുന്നേരം 5 മണിക്ക് മുമ്പ്</span>
+          </div>`;
+        formCardEl.style.display = "";
+      } else {
+        statusBannerEl.innerHTML = `<div class="banner closed">വോട്ടിംഗ് അവസാനിച്ചു.</div>`;
+        formCardEl.style.display = "none";
+      }
+
+      if (latestStatus.winnerNameId) {
+        const winner = latestNames.find((n) => n.id === latestStatus.winnerNameId);
+        winnerCardEl.innerHTML = `
+          <div class="card winner-card">
+            <div class="label">🎉 വിജയിച്ച പേര് 🎉</div>
+            <div class="name">${winner ? escapeHtml(winner.text) : "…"}</div>
+            <div class="method">${methodLabel(latestStatus.winnerMethod)}</div>
+          </div>`;
+      } else {
+        winnerCardEl.innerHTML = "";
+      }
+    }
+
+    subscribeToNames((names) => {
+      latestNames = names;
+      renderNames();
+      renderStatus();
+    });
+
+    subscribeToStatus((status) => {
+      latestStatus = status;
+      renderStatus();
+      renderNames();
+    });
+
+    ensureStatusDoc().catch(() => { /* fine if it already exists */ });
+
+    formEl.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const text = inputEl.value;
+      if (!text.trim()) return;
+
+      submitBtnEl.disabled = true;
+      formMsgEl.textContent = "";
+      formMsgEl.className = "form-msg";
+
+      try {
+        const result = await submitOrVoteName(text);
+        inputEl.value = "";
+        if (result.alreadyExisted) {
+          formMsgEl.textContent = result.alreadyVoted
+            ? "ഈ പേര് നേരത്തെ നിർദ്ദേശിച്ചിട്ടുണ്ട് — നിങ്ങൾ ഇതിനകം വോട്ട് ചെയ്തു!"
+            : "ഈ പേര് നേരത്തെ ഉണ്ടായിരുന്നു — നിങ്ങളുടെ വോട്ട് ചേർത്തു!";
+        } else {
+          formMsgEl.textContent = "നന്ദി! നിങ്ങളുടെ പേര് ചേർത്തു.";
+        }
+        formMsgEl.classList.add("ok");
+      } catch (err) {
+        console.error(err);
+        formMsgEl.textContent = "എന്തോ കുഴപ്പം സംഭവിച്ചു. വീണ്ടും ശ്രമിക്കൂ.";
+        formMsgEl.classList.add("error");
+      } finally {
+        submitBtnEl.disabled = false;
+      }
+    });
+
+    namesListEl.addEventListener("click", async (e) => {
+      const btn = e.target.closest(".vote-btn");
+      if (!btn || btn.disabled) return;
+      btn.disabled = true;
+      try {
+        await upvoteName(btn.dataset.id);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        btn.disabled = !latestStatus.isOpen ? true : false;
+      }
+    });
+  </script>
+</body>
+</html>

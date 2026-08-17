@@ -1,0 +1,314 @@
+@import url('https://fonts.googleapis.com/css2?family=Baloo+Chettan+2:wght@500;600;700;800&family=Noto+Sans+Malayalam:wght@400;500;600;700&display=swap');
+
+:root{
+  --cream:#FCF3DC;
+  --cream-2:#F7E7BE;
+  --parchment:#FFFBF0;
+
+  --green-300:#5BC97E;
+  --green-500:#2FA75A;
+  --green-600:#1F8E48;
+  --green-700:#187A3D;
+  --green-800:#145C32;
+  --green-900:#0C3A20;
+
+  --orange-300:#FBB25C;
+  --orange-500:#F3801E;
+  --orange-600:#E2650F;
+
+  --maroon-700:#8A2417;
+  --maroon-800:#6E1B10;
+
+  --gold-300:#F6D27A;
+  --gold-500:#E0AC33;
+  --gold-700:#B9821E;
+  --gold-800:#8C6215;
+
+  --ink:#2B1B10;
+  --ink-soft:#4A3320;
+}
+
+*{ box-sizing:border-box; }
+html,body{ margin:0; padding:0; }
+
+body{
+  font-family:'Noto Sans Malayalam', sans-serif;
+  color:var(--ink);
+  background:
+    radial-gradient(ellipse at 20% 0%, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0) 45%),
+    linear-gradient(180deg, var(--cream) 0%, var(--cream-2) 100%);
+  min-height:100vh;
+}
+
+.wrap{
+  max-width:720px;
+  margin:0 auto;
+  padding:24px 18px 64px;
+}
+
+/* ---------- Header ---------- */
+.site-header{
+  text-align:center;
+  padding:28px 16px 20px;
+}
+.site-header .kicker{
+  font-family:'Baloo Chettan 2', sans-serif;
+  font-weight:700;
+  font-size:15px;
+  letter-spacing:0.02em;
+  color:var(--maroon-700);
+  margin:0 0 4px;
+}
+.site-header h1{
+  font-family:'Baloo Chettan 2', sans-serif;
+  font-weight:800;
+  font-size:clamp(32px, 8vw, 48px);
+  line-height:1.05;
+  margin:0;
+  color:var(--green-600);
+  -webkit-text-stroke: 1.4px var(--parchment);
+  paint-order: stroke fill;
+  filter: drop-shadow(0 2px 0 rgba(43,27,16,0.25));
+}
+.site-header h1 .accent{
+  color:var(--orange-500);
+  -webkit-text-stroke: 1.3px var(--parchment);
+}
+.site-header p.sub{
+  margin:10px auto 0;
+  max-width:480px;
+  font-size:15px;
+  color:var(--ink-soft);
+}
+
+/* ---------- Cards ---------- */
+.card{
+  background:var(--parchment);
+  border-radius:16px;
+  padding:22px 20px;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.6) inset,
+    0 10px 26px -14px rgba(43,27,16,0.35);
+  border:1px solid rgba(184,130,30,0.25);
+  margin-bottom:20px;
+}
+
+/* ---------- Status banner ---------- */
+.banner{
+  border-radius:14px;
+  padding:16px 18px;
+  margin-bottom:20px;
+  text-align:center;
+  font-weight:600;
+}
+.banner.open{
+  background:linear-gradient(180deg, var(--green-600), var(--green-800));
+  color:var(--parchment);
+}
+.banner.closed{
+  background:linear-gradient(180deg, var(--gold-500), var(--gold-700));
+  color:var(--ink);
+}
+.banner .deadline{
+  font-family:'Baloo Chettan 2', sans-serif;
+  font-weight:700;
+  font-size:17px;
+  margin-top:4px;
+}
+
+/* ---------- Winner ---------- */
+.winner-card{
+  text-align:center;
+  background:linear-gradient(180deg, var(--gold-300), var(--gold-500));
+  border:1px solid var(--gold-700);
+}
+.winner-card .label{
+  font-weight:600;
+  color:var(--maroon-800);
+  margin-bottom:6px;
+}
+.winner-card .name{
+  font-family:'Baloo Chettan 2', sans-serif;
+  font-weight:800;
+  font-size:clamp(28px, 7vw, 40px);
+  color:var(--green-800);
+}
+.winner-card .method{
+  margin-top:6px;
+  font-size:13px;
+  color:var(--maroon-800);
+  opacity:0.85;
+}
+
+/* ---------- Form ---------- */
+.submit-form{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+}
+.submit-form input[type="text"]{
+  flex:1 1 220px;
+  font-family:inherit;
+  font-size:16px;
+  padding:13px 16px;
+  border-radius:10px;
+  border:1.5px solid rgba(184,130,30,0.4);
+  background:#fff;
+  color:var(--ink);
+}
+.submit-form input[type="text"]:focus{
+  outline:2px solid var(--gold-500);
+  outline-offset:1px;
+}
+.btn{
+  font-family:'Baloo Chettan 2', sans-serif;
+  font-weight:700;
+  font-size:15px;
+  border:none;
+  border-radius:10px;
+  padding:13px 22px;
+  cursor:pointer;
+  color:var(--parchment);
+  background:linear-gradient(180deg, var(--green-500), var(--green-700));
+  box-shadow:0 3px 0 var(--green-900);
+  transition:transform 0.08s ease;
+}
+.btn:active{ transform:translateY(2px); box-shadow:0 1px 0 var(--green-900); }
+.btn:disabled{ opacity:0.5; cursor:not-allowed; }
+.btn.secondary{
+  background:linear-gradient(180deg, var(--orange-300), var(--orange-600));
+  box-shadow:0 3px 0 var(--maroon-800);
+}
+.btn.danger{
+  background:linear-gradient(180deg, #E06B5C, var(--maroon-700));
+  box-shadow:0 3px 0 var(--maroon-800);
+}
+.btn.ghost{
+  background:transparent;
+  color:var(--green-700);
+  box-shadow:none;
+  border:1.5px solid var(--green-700);
+}
+.form-msg{
+  width:100%;
+  font-size:13.5px;
+  margin-top:4px;
+  min-height:18px;
+}
+.form-msg.error{ color:var(--maroon-700); }
+.form-msg.ok{ color:var(--green-700); }
+
+/* ---------- Leaderboard ---------- */
+.list-title{
+  font-family:'Baloo Chettan 2', sans-serif;
+  font-weight:700;
+  font-size:18px;
+  color:var(--green-800);
+  margin:0 0 12px;
+}
+.name-row{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:12px 4px;
+  border-bottom:1px dashed rgba(184,130,30,0.35);
+}
+.name-row:last-child{ border-bottom:none; }
+.name-row .rank{
+  font-family:'Baloo Chettan 2', sans-serif;
+  font-weight:700;
+  color:var(--gold-700);
+  width:24px;
+  flex:none;
+  text-align:center;
+}
+.name-row .text{
+  flex:1 1 auto;
+  font-weight:600;
+  font-size:16px;
+  min-width:0;
+  overflow-wrap:anywhere;
+}
+.name-row .vote-btn{
+  flex:none;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  font-family:'Baloo Chettan 2', sans-serif;
+  font-weight:700;
+  font-size:14px;
+  border-radius:20px;
+  padding:7px 14px;
+  border:1.5px solid var(--green-600);
+  background:#fff;
+  color:var(--green-700);
+  cursor:pointer;
+}
+.name-row .vote-btn.voted{
+  background:linear-gradient(180deg, var(--green-500), var(--green-700));
+  color:var(--parchment);
+  border-color:var(--green-800);
+}
+.name-row .vote-btn:disabled{ cursor:default; }
+.empty-msg{
+  text-align:center;
+  color:var(--ink-soft);
+  padding:20px 0;
+  font-size:14.5px;
+}
+
+/* ---------- Admin ---------- */
+.admin-login{
+  max-width:360px;
+  margin:60px auto 0;
+}
+.admin-login label{
+  display:block;
+  font-weight:600;
+  font-size:13.5px;
+  margin:12px 0 4px;
+}
+.admin-login input{
+  width:100%;
+  font-family:inherit;
+  font-size:15px;
+  padding:11px 14px;
+  border-radius:9px;
+  border:1.5px solid rgba(184,130,30,0.4);
+}
+.admin-bar{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+  flex-wrap:wrap;
+  margin-bottom:18px;
+}
+.admin-bar .who{
+  font-size:13.5px;
+  color:var(--ink-soft);
+}
+.action-row{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  margin-top:14px;
+}
+.status-pill{
+  display:inline-block;
+  font-size:12.5px;
+  font-weight:700;
+  padding:4px 10px;
+  border-radius:20px;
+  margin-left:8px;
+}
+.status-pill.open{ background:var(--green-600); color:#fff; }
+.status-pill.closed{ background:var(--maroon-700); color:#fff; }
+
+.footer-note{
+  text-align:center;
+  font-size:12.5px;
+  color:var(--ink-soft);
+  opacity:0.75;
+  margin-top:30px;
+}
