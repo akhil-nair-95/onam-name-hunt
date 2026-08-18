@@ -8,10 +8,15 @@
 </head>
 <body>
   <div class="wrap">
+    <div class="lang-toggle" id="langToggle">
+      <button type="button" data-lang="ml">മലയാളം</button>
+      <button type="button" data-lang="en">EN</button>
+    </div>
+
     <header class="site-header">
-      <p class="kicker">✦ ഒരു പുതിയ ആവേശം! ✦</p>
-      <h1>ഓണം<br><span class="accent">നെയിം ഹണ്ട്</span></h1>
-      <p class="sub">നിങ്ങളുടെ ഏറ്റവും മികച്ച പേര് നിർദ്ദേശിക്കൂ!</p>
+      <p class="kicker" id="txtKicker"></p>
+      <h1 id="txtTitle"></h1>
+      <p class="sub" id="txtSub"></p>
     </header>
 
     <div id="statusBanner"></div>
@@ -20,19 +25,19 @@
 
     <section class="card" id="formCard">
       <form class="submit-form" id="submitForm" autocomplete="off">
-        <input type="text" id="submitterInput" placeholder="നിങ്ങളുടെ പേര്..." maxlength="60" required>
-        <input type="text" id="nameInput" placeholder="നിങ്ങളുടെ പേര് നിർദ്ദേശം..." maxlength="60" required>
-        <button type="submit" class="btn" id="submitBtn">സമർപ്പിക്കൂ</button>
+        <input type="text" id="submitterInput" maxlength="60" required>
+        <input type="text" id="nameInput" maxlength="60" required>
+        <button type="submit" class="btn" id="submitBtn"></button>
         <div class="form-msg" id="formMsg"></div>
       </form>
     </section>
 
     <section class="card" id="listCard">
-      <h2 class="list-title">നിർദ്ദേശിക്കപ്പെട്ട പേരുകൾ</h2>
+      <h2 class="list-title" id="txtListTitle"></h2>
       <div id="namesList"></div>
     </section>
 
-    <p class="footer-note">ഓരോ ഉപകരണത്തിനും ഒരു പേരിന് ഒരു വോട്ട് മാത്രം.</p>
+    <p class="footer-note" id="txtFooterNote"></p>
   </div>
 
   <script type="module">
@@ -46,6 +51,70 @@
     // separate manual action the admin takes, not automatic.
     const DEADLINE = new Date("2026-08-20T17:00:00+05:30");
 
+    // -------------------------------------------------------------------
+    // Translations — hand-written (not machine-translated on the fly) so
+    // the English reads naturally. Add a key here + reference it via t()
+    // anywhere new UI text is needed.
+    // -------------------------------------------------------------------
+    const STRINGS = {
+      ml: {
+        pageTitle: "ഓണം നെയിം ഹണ്ട്",
+        kicker: "✦ ഒരു പുതിയ ആവേശം! ✦",
+        titleLine1: "ഓണം",
+        titleLine2: "നെയിം ഹണ്ട്",
+        sub: "നിങ്ങളുടെ ഏറ്റവും മികച്ച പേര് നിർദ്ദേശിക്കൂ!",
+        countdownLabel: "സമർപ്പിക്കാൻ ബാക്കിയുള്ള സമയം",
+        countdownOver: "സമർപ്പിക്കാനുള്ള സമയം കഴിഞ്ഞു",
+        cdDays: "ദിവസം", cdHours: "മണിക്കൂർ", cdMins: "മിനിറ്റ്", cdSecs: "സെക്കൻഡ്",
+        bannerOpen: "സമർപ്പിക്കാൻ ഇപ്പോൾ സമയമുണ്ട്!",
+        deadlineText: "ഓഗസ്റ്റ് 20 · വൈകുന്നേരം 5 മണിക്ക് മുമ്പ്",
+        bannerClosed: "സമർപ്പിക്കൽ അവസാനിച്ചു.",
+        winnerLabel: "🎉 വിജയിച്ച പേര് 🎉",
+        methodRandom: "🎲 ക്രമരഹിതമായി തിരഞ്ഞെടുത്തത്",
+        methodVotes: "🏆 ഏറ്റവും കൂടുതൽ വോട്ട് നേടിയത്",
+        submitterPlaceholder: "നിങ്ങളുടെ പേര്...",
+        namePlaceholder: "നിങ്ങളുടെ പേര് നിർദ്ദേശം...",
+        submitBtn: "സമർപ്പിക്കൂ",
+        listTitle: "നിർദ്ദേശിക്കപ്പെട്ട പേരുകൾ",
+        emptyMsg: "ഇതുവരെ പേരുകളൊന്നും നിർദ്ദേശിച്ചിട്ടില്ല. ആദ്യത്തെയാളാകൂ!",
+        footerNote: "ഓരോ ഉപകരണത്തിനും ഒരു പേരിന് ഒരു വോട്ട് മാത്രം.",
+        msgAlreadyVoted: "ഈ പേര് നേരത്തെ നിർദ്ദേശിച്ചിട്ടുണ്ട് — നിങ്ങൾ ഇതിനകം വോട്ട് ചെയ്തു!",
+        msgVoteAdded: "ഈ പേര് നേരത്തെ ഉണ്ടായിരുന്നു — നിങ്ങളുടെ വോട്ട് ചേർത്തു!",
+        msgThanks: "നന്ദി! നിങ്ങളുടെ പേര് ചേർത്തു.",
+        msgError: "എന്തോ കുഴപ്പം സംഭവിച്ചു. വീണ്ടും ശ്രമിക്കൂ.",
+      },
+      en: {
+        pageTitle: "Onam Name Hunt",
+        kicker: "✦ A New Wave of Excitement! ✦",
+        titleLine1: "Onam",
+        titleLine2: "Name Hunt",
+        sub: "Suggest your best name idea!",
+        countdownLabel: "Time left to submit",
+        countdownOver: "Submission time is over",
+        cdDays: "Days", cdHours: "Hours", cdMins: "Mins", cdSecs: "Secs",
+        bannerOpen: "Submissions are open now!",
+        deadlineText: "Before 5 PM, August 20",
+        bannerClosed: "Submissions are closed.",
+        winnerLabel: "🎉 Winning Name 🎉",
+        methodRandom: "🎲 Chosen at random",
+        methodVotes: "🏆 Most upvoted",
+        submitterPlaceholder: "Your name...",
+        namePlaceholder: "Suggest a name...",
+        submitBtn: "Submit",
+        listTitle: "Suggested Names",
+        emptyMsg: "No names suggested yet. Be the first!",
+        footerNote: "One vote per name, per device.",
+        msgAlreadyVoted: "This name was already suggested — you've already voted for it!",
+        msgVoteAdded: "This name already existed — your vote has been added!",
+        msgThanks: "Thanks! Your name has been added.",
+        msgError: "Something went wrong. Please try again.",
+      },
+    };
+
+    let lang = localStorage.getItem("lang") || "ml";
+    function t(key) { return STRINGS[lang][key]; }
+
+    const langToggleEl = document.getElementById("langToggle");
     const namesListEl = document.getElementById("namesList");
     const listCardEl = document.getElementById("listCard");
     const statusBannerEl = document.getElementById("statusBanner");
@@ -68,10 +137,40 @@
     }
 
     function methodLabel(method) {
-      if (method === "random") return "🎲 ക്രമരഹിതമായി തിരഞ്ഞെടുത്തത്";
-      if (method === "votes") return "🏆 ഏറ്റവും കൂടുതൽ വോട്ട് നേടിയത്";
+      if (method === "random") return t("methodRandom");
+      if (method === "votes") return t("methodVotes");
       return "";
     }
+
+    // ---------------- static text + language toggle ----------------
+    function applyStaticText() {
+      document.documentElement.lang = lang;
+      document.title = t("pageTitle");
+      document.getElementById("txtKicker").textContent = t("kicker");
+      document.getElementById("txtTitle").innerHTML =
+        `${escapeHtml(t("titleLine1"))}<br><span class="accent">${escapeHtml(t("titleLine2"))}</span>`;
+      document.getElementById("txtSub").textContent = t("sub");
+      submitterInputEl.placeholder = t("submitterPlaceholder");
+      inputEl.placeholder = t("namePlaceholder");
+      submitBtnEl.textContent = t("submitBtn");
+      document.getElementById("txtListTitle").textContent = t("listTitle");
+      document.getElementById("txtFooterNote").textContent = t("footerNote");
+
+      langToggleEl.querySelectorAll("button").forEach((b) => {
+        b.classList.toggle("active", b.dataset.lang === lang);
+      });
+    }
+
+    langToggleEl.addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-lang]");
+      if (!btn) return;
+      lang = btn.dataset.lang;
+      localStorage.setItem("lang", lang);
+      applyStaticText();
+      renderCountdown();
+      renderStatus();
+      renderNames();
+    });
 
     // ---------------- countdown ----------------
     function renderCountdown() {
@@ -79,7 +178,7 @@
       if (ms <= 0) {
         countdownCardEl.innerHTML = `
           <div class="card countdown-card">
-            <div class="countdown-label">സമർപ്പിക്കാനുള്ള സമയം കഴിഞ്ഞു</div>
+            <div class="countdown-label">${t("countdownOver")}</div>
           </div>`;
         return;
       }
@@ -91,16 +190,15 @@
       const pad = (n) => String(n).padStart(2, "0");
       countdownCardEl.innerHTML = `
         <div class="card countdown-card">
-          <div class="countdown-label">സമർപ്പിക്കാൻ ബാക്കിയുള്ള സമയം</div>
+          <div class="countdown-label">${t("countdownLabel")}</div>
           <div class="countdown-clock">
-            <div class="cd-unit"><span class="cd-num">${days}</span><span class="cd-label">ദിവസം</span></div>
-            <div class="cd-unit"><span class="cd-num">${pad(hours)}</span><span class="cd-label">മണിക്കൂർ</span></div>
-            <div class="cd-unit"><span class="cd-num">${pad(mins)}</span><span class="cd-label">മിനിറ്റ്</span></div>
-            <div class="cd-unit"><span class="cd-num">${pad(secs)}</span><span class="cd-label">സെക്കൻഡ്</span></div>
+            <div class="cd-unit"><span class="cd-num">${days}</span><span class="cd-label">${t("cdDays")}</span></div>
+            <div class="cd-unit"><span class="cd-num">${pad(hours)}</span><span class="cd-label">${t("cdHours")}</span></div>
+            <div class="cd-unit"><span class="cd-num">${pad(mins)}</span><span class="cd-label">${t("cdMins")}</span></div>
+            <div class="cd-unit"><span class="cd-num">${pad(secs)}</span><span class="cd-label">${t("cdSecs")}</span></div>
           </div>
         </div>`;
     }
-    renderCountdown();
     setInterval(renderCountdown, 1000);
 
     // ---------------- names list (admin-controlled visibility) ----------------
@@ -112,7 +210,7 @@
       listCardEl.style.display = "";
 
       if (latestNames.length === 0) {
-        namesListEl.innerHTML = '<p class="empty-msg">ഇതുവരെ പേരുകളൊന്നും നിർദ്ദേശിച്ചിട്ടില്ല. ആദ്യത്തെയാളാകൂ!</p>';
+        namesListEl.innerHTML = `<p class="empty-msg">${t("emptyMsg")}</p>`;
         return;
       }
       const voted = await getVotedSet(latestNames.map((n) => n.id));
@@ -133,12 +231,12 @@
       if (latestStatus.isOpen) {
         statusBannerEl.innerHTML = `
           <div class="banner open">
-            സമർപ്പിക്കാൻ ഇപ്പോൾ സമയമുണ്ട്!<br>
-            <span class="deadline">ഓഗസ്റ്റ് 20 · വൈകുന്നേരം 5 മണിക്ക് മുമ്പ്</span>
+            ${t("bannerOpen")}<br>
+            <span class="deadline">${t("deadlineText")}</span>
           </div>`;
         formCardEl.style.display = "";
       } else {
-        statusBannerEl.innerHTML = `<div class="banner closed">സമർപ്പിക്കൽ അവസാനിച്ചു.</div>`;
+        statusBannerEl.innerHTML = `<div class="banner closed">${t("bannerClosed")}</div>`;
         formCardEl.style.display = "none";
       }
 
@@ -146,7 +244,7 @@
         const winner = latestNames.find((n) => n.id === latestStatus.winnerNameId);
         winnerCardEl.innerHTML = `
           <div class="card winner-card">
-            <div class="label">🎉 വിജയിച്ച പേര് 🎉</div>
+            <div class="label">${t("winnerLabel")}</div>
             <div class="name">${winner ? escapeHtml(winner.text) : "…"}</div>
             <div class="method">${methodLabel(latestStatus.winnerMethod)}</div>
           </div>`;
@@ -154,6 +252,9 @@
         winnerCardEl.innerHTML = "";
       }
     }
+
+    applyStaticText();
+    renderCountdown();
 
     subscribeToNames((names) => {
       latestNames = names;
@@ -183,16 +284,14 @@
         const result = await submitOrVoteName(text, submitter);
         inputEl.value = "";
         if (result.alreadyExisted) {
-          formMsgEl.textContent = result.alreadyVoted
-            ? "ഈ പേര് നേരത്തെ നിർദ്ദേശിച്ചിട്ടുണ്ട് — നിങ്ങൾ ഇതിനകം വോട്ട് ചെയ്തു!"
-            : "ഈ പേര് നേരത്തെ ഉണ്ടായിരുന്നു — നിങ്ങളുടെ വോട്ട് ചേർത്തു!";
+          formMsgEl.textContent = result.alreadyVoted ? t("msgAlreadyVoted") : t("msgVoteAdded");
         } else {
-          formMsgEl.textContent = "നന്ദി! നിങ്ങളുടെ പേര് ചേർത്തു.";
+          formMsgEl.textContent = t("msgThanks");
         }
         formMsgEl.classList.add("ok");
       } catch (err) {
         console.error(err);
-        formMsgEl.textContent = "എന്തോ കുഴപ്പം സംഭവിച്ചു. വീണ്ടും ശ്രമിക്കൂ.";
+        formMsgEl.textContent = t("msgError");
         formMsgEl.classList.add("error");
       } finally {
         submitBtnEl.disabled = false;
