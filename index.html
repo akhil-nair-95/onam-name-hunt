@@ -22,6 +22,7 @@
     <div id="statusBanner"></div>
     <div id="countdownCard"></div>
     <div id="winnerCard"></div>
+    <div id="alreadySubmittedCard"></div>
 
     <section class="card" id="formCard">
       <form class="submit-form" id="submitForm" autocomplete="off">
@@ -43,7 +44,7 @@
   <script type="module">
     import {
       subscribeToNames, subscribeToStatus, submitOrVoteName, upvoteName,
-      getVotedSet, ensureStatusDoc, getUid
+      getVotedSet, ensureStatusDoc, getUid, getMySubmission
     } from "./app.js";
 
     // Fixed deadline shown on the poster: August 20, 5 PM India time.
@@ -82,6 +83,9 @@
         msgVoteAdded: "ഈ പേര് നേരത്തെ ഉണ്ടായിരുന്നു — നിങ്ങളുടെ വോട്ട് ചേർത്തു!",
         msgThanks: "നന്ദി! നിങ്ങളുടെ പേര് ചേർത്തു.",
         msgError: "എന്തോ കുഴപ്പം സംഭവിച്ചു. വീണ്ടും ശ്രമിക്കൂ.",
+        msgAlreadySubmitted: "ഈ ഉപകരണത്തിൽ നിന്ന് നിങ്ങൾ ഇതിനകം ഒരു പേര് സമർപ്പിച്ചിട്ടുണ്ട്.",
+        alreadySubmittedLabel: "നിങ്ങൾ സമർപ്പിച്ച പേര്",
+        alreadySubmittedHint: "ഓരോ ഉപകരണത്തിനും ഒരു സമർപ്പണം മാത്രം — മറ്റൊരു പേര് നിർദ്ദേശിക്കാൻ വേറൊരു ഉപകരണം ഉപയോഗിക്കൂ.",
       },
       en: {
         pageTitle: "Onam Name Hunt",
@@ -108,6 +112,9 @@
         msgVoteAdded: "This name already existed — your vote has been added!",
         msgThanks: "Thanks! Your name has been added.",
         msgError: "Something went wrong. Please try again.",
+        msgAlreadySubmitted: "You've already submitted a name from this device.",
+        alreadySubmittedLabel: "Your submitted name",
+        alreadySubmittedHint: "Only one submission per device — use a different device to suggest another name.",
       },
     };
 
@@ -120,6 +127,7 @@
     const statusBannerEl = document.getElementById("statusBanner");
     const countdownCardEl = document.getElementById("countdownCard");
     const winnerCardEl = document.getElementById("winnerCard");
+    const alreadySubmittedCardEl = document.getElementById("alreadySubmittedCard");
     const formCardEl = document.getElementById("formCard");
     const formEl = document.getElementById("submitForm");
     const submitterInputEl = document.getElementById("submitterInput");
@@ -129,6 +137,7 @@
 
     let latestNames = [];
     let latestStatus = { isOpen: true, showNamesPublicly: false, winnerNameId: null, winnerMethod: null };
+    let mySubmission = null; // set once we know whether this device already submitted
 
     function escapeHtml(s) {
       return s.replace(/[&<>"']/g, (c) => ({
@@ -227,18 +236,33 @@
       }).join("");
     }
 
+    function renderAlreadySubmitted() {
+      if (!mySubmission) {
+        alreadySubmittedCardEl.innerHTML = "";
+        return;
+      }
+      alreadySubmittedCardEl.innerHTML = `
+        <div class="card submitted-card">
+          <div class="label">${t("alreadySubmittedLabel")}</div>
+          <div class="name">${escapeHtml(mySubmission.text)}</div>
+          <div class="hint">${t("alreadySubmittedHint")}</div>
+        </div>`;
+    }
+
     function renderStatus() {
+      const formShouldShow = latestStatus.isOpen && !mySubmission;
+
       if (latestStatus.isOpen) {
         statusBannerEl.innerHTML = `
           <div class="banner open">
             ${t("bannerOpen")}<br>
             <span class="deadline">${t("deadlineText")}</span>
           </div>`;
-        formCardEl.style.display = "";
       } else {
         statusBannerEl.innerHTML = `<div class="banner closed">${t("bannerClosed")}</div>`;
-        formCardEl.style.display = "none";
       }
+      formCardEl.style.display = formShouldShow ? "" : "none";
+      renderAlreadySubmitted();
 
       if (latestStatus.winnerNameId) {
         const winner = latestNames.find((n) => n.id === latestStatus.winnerNameId);
@@ -255,6 +279,11 @@
 
     applyStaticText();
     renderCountdown();
+
+    getMySubmission().then((submission) => {
+      mySubmission = submission;
+      renderStatus();
+    }).catch((err) => console.error("getMySubmission failed", err));
 
     subscribeToNames((names) => {
       latestNames = names;
@@ -282,6 +311,7 @@
 
       try {
         const result = await submitOrVoteName(text, submitter);
+        mySubmission = { text: result.alreadyExisted ? latestNames.find((n) => n.id === result.nameId)?.text || text : text };
         inputEl.value = "";
         if (result.alreadyExisted) {
           formMsgEl.textContent = result.alreadyVoted ? t("msgAlreadyVoted") : t("msgVoteAdded");
@@ -289,9 +319,10 @@
           formMsgEl.textContent = t("msgThanks");
         }
         formMsgEl.classList.add("ok");
+        renderStatus();
       } catch (err) {
         console.error(err);
-        formMsgEl.textContent = t("msgError");
+        formMsgEl.textContent = err.message === "ALREADY_SUBMITTED" ? t("msgAlreadySubmitted") : t("msgError");
         formMsgEl.classList.add("error");
       } finally {
         submitBtnEl.disabled = false;
