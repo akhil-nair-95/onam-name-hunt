@@ -64,9 +64,29 @@ function normalize(text) {
 }
 
 /**
- * Submits a new name, OR — if an identical name (case-insensitive) already
- * exists — casts a vote for that existing one instead. Either way, the
- * current device's own vote is recorded as part of the same action.
+ * Has this device already submitted a name? If so, returns that name's
+ * data (so the UI can show "you already suggested: ...") — otherwise null.
+ * Call this on page load, before showing the submission form.
+ */
+export async function getMySubmission() {
+  const uid = await getUid();
+  const claimSnap = await getDoc(doc(db, "submitters", uid));
+  if (!claimSnap.exists()) return null;
+
+  const nameId = claimSnap.data().nameId;
+  const nameSnap = await getDoc(doc(db, "names", nameId));
+  return nameSnap.exists() ? { id: nameSnap.id, ...nameSnap.data() } : null;
+}
+
+/**
+ * Submits a new name — but only once per device, ever. If this device has
+ * already submitted, throws ALREADY_SUBMITTED instead (check
+ * getMySubmission() up front so the UI never even gets here in that case).
+ *
+ * If the typed name (case-insensitive) already exists from someone else,
+ * this device's vote is added to that existing entry instead of creating a
+ * duplicate — but the one-submission-per-device claim is still recorded
+ * either way, so this device can't submit again afterwards.
  *
  * submitterName is the suggester's own name (required, shown to the admin
  * only) so the winner's suggester can actually be identified afterwards.
@@ -82,29 +102,51 @@ export async function submitOrVoteName(rawText, rawSubmitterName) {
   if (submitterName.length > 60) throw new Error("SUBMITTER_TOO_LONG");
 
   const uid = await getUid();
+
+  const claimRef = doc(db, "submitters", uid);
+  const existingClaim = await getDoc(claimRef);
+  if (existingClaim.exists()) throw new Error("ALREADY_SUBMITTED");
+
   const textLower = text.toLowerCase();
 
   const existing = await getDocs(
     query(collection(db, "names"), where("textLower", "==", textLower))
   );
 
+  let nameId, alreadyExisted, alreadyVoted;
+
   if (!existing.empty) {
     const existingDoc = existing.docs[0];
     const result = await castVote(existingDoc.id, uid);
-    return { nameId: existingDoc.id, alreadyExisted: true, alreadyVoted: !result.voted };
+    nameId = existingDoc.id;
+    alreadyExisted = true;
+    alreadyVoted = !result.voted;
+  } else {
+    const nameRef = await addDoc(collection(db, "names"), {
+      text,
+      textLower,
+      submitterName,
+      votes: 0,
+      submittedBy: uid,
+      submittedAt: serverTimestamp(),
+    });
+    await castVote(nameRef.id, uid);
+    nameId = nameRef.id;
+    alreadyExisted = false;
+    alreadyVoted = false;
   }
 
-  const nameRef = await addDoc(collection(db, "names"), {
-    text,
-    textLower,
-    submitterName,
-    votes: 0,
-    submittedBy: uid,
-    submittedAt: serverTimestamp(),
-  });
+  // Record the one-submission-per-device claim. If this somehow already
+  // exists (a rare race between two near-simultaneous attempts from the
+  // same device), Firestore rejects the write — that's fine, it just means
+  // the other attempt won the race; this vote/name still went through.
+  try {
+    await setDoc(claimRef, { nameId, submittedAt: serverTimestamp() });
+  } catch (err) {
+    console.warn("submitters claim race (harmless):", err.message);
+  }
 
-  await castVote(nameRef.id, uid);
-  return { nameId: nameRef.id, alreadyExisted: false, alreadyVoted: false };
+  return { nameId, alreadyExisted, alreadyVoted };
 }
 
 /**
