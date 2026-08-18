@@ -203,6 +203,29 @@ body{
   opacity:0.85;
 }
 
+.submitted-card{
+  text-align:center;
+  border:1.5px dashed var(--green-700);
+  background:var(--cream-2);
+}
+.submitted-card .label{
+  font-weight:600;
+  font-size:13.5px;
+  color:var(--ink-soft);
+  margin-bottom:6px;
+}
+.submitted-card .name{
+  font-family:'Baloo Chettan 2', sans-serif;
+  font-weight:800;
+  font-size:clamp(22px, 6vw, 30px);
+  color:var(--green-800);
+}
+.submitted-card .hint{
+  margin-top:8px;
+  font-size:13px;
+  color:var(--ink-soft);
+}
+
 /* ---------- Form ---------- */
 .submit-form{
   display:flex;
