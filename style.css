@@ -81,6 +81,30 @@ body{
   color:var(--ink-soft);
 }
 
+/* ---------- Language toggle ---------- */
+.lang-toggle{
+  display:flex;
+  justify-content:center;
+  gap:6px;
+  padding-top:6px;
+}
+.lang-toggle button{
+  font-family:'Noto Sans Malayalam', sans-serif;
+  font-weight:600;
+  font-size:13px;
+  padding:6px 14px;
+  border-radius:20px;
+  border:1.5px solid var(--gold-700);
+  background:transparent;
+  color:var(--maroon-700);
+  cursor:pointer;
+}
+.lang-toggle button.active{
+  background:linear-gradient(180deg, var(--green-500), var(--green-700));
+  color:var(--parchment);
+  border-color:var(--green-800);
+}
+
 /* ---------- Cards ---------- */
 .card{
   background:var(--parchment);
