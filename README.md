@@ -1,7 +1,7 @@
 # ഓണം നെയിം ഹണ്ട് — Name Hunt contest app
 
 A tiny, free, no-server contest app:
-- Anyone can suggest a name and upvote others'.
+- Anyone can suggest a name and upvote others name'.
 - One vote per name per device (no login needed for visitors).
 - You (the admin) can close voting and declare a winner — either the
   highest-voted name, or a true random pick among all submissions.
