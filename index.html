@@ -11,21 +11,23 @@
     <header class="site-header">
       <p class="kicker">✦ ഒരു പുതിയ ആവേശം! ✦</p>
       <h1>ഓണം<br><span class="accent">നെയിം ഹണ്ട്</span></h1>
-      <p class="sub">നിങ്ങളുടെ ഏറ്റവും മികച്ച പേര് നിർദ്ദേശിക്കൂ, മറ്റുള്ളവരുടെ പേരുകൾക്ക് വോട്ട് ചെയ്യൂ!</p>
+      <p class="sub">നിങ്ങളുടെ ഏറ്റവും മികച്ച പേര് നിർദ്ദേശിക്കൂ!</p>
     </header>
 
     <div id="statusBanner"></div>
+    <div id="countdownCard"></div>
     <div id="winnerCard"></div>
 
     <section class="card" id="formCard">
       <form class="submit-form" id="submitForm" autocomplete="off">
+        <input type="text" id="submitterInput" placeholder="നിങ്ങളുടെ പേര്..." maxlength="60" required>
         <input type="text" id="nameInput" placeholder="നിങ്ങളുടെ പേര് നിർദ്ദേശം..." maxlength="60" required>
         <button type="submit" class="btn" id="submitBtn">സമർപ്പിക്കൂ</button>
         <div class="form-msg" id="formMsg"></div>
       </form>
     </section>
 
-    <section class="card">
+    <section class="card" id="listCard">
       <h2 class="list-title">നിർദ്ദേശിക്കപ്പെട്ട പേരുകൾ</h2>
       <div id="namesList"></div>
     </section>
@@ -39,17 +41,25 @@
       getVotedSet, ensureStatusDoc, getUid
     } from "./app.js";
 
+    // Fixed deadline shown on the poster: August 20, 5 PM India time.
+    // Purely a visual countdown — actually closing submissions is a
+    // separate manual action the admin takes, not automatic.
+    const DEADLINE = new Date("2026-08-20T17:00:00+05:30");
+
     const namesListEl = document.getElementById("namesList");
+    const listCardEl = document.getElementById("listCard");
     const statusBannerEl = document.getElementById("statusBanner");
+    const countdownCardEl = document.getElementById("countdownCard");
     const winnerCardEl = document.getElementById("winnerCard");
     const formCardEl = document.getElementById("formCard");
     const formEl = document.getElementById("submitForm");
+    const submitterInputEl = document.getElementById("submitterInput");
     const inputEl = document.getElementById("nameInput");
     const submitBtnEl = document.getElementById("submitBtn");
     const formMsgEl = document.getElementById("formMsg");
 
     let latestNames = [];
-    let latestStatus = { isOpen: true, winnerNameId: null, winnerMethod: null };
+    let latestStatus = { isOpen: true, showNamesPublicly: false, winnerNameId: null, winnerMethod: null };
 
     function escapeHtml(s) {
       return s.replace(/[&<>"']/g, (c) => ({
@@ -63,7 +73,44 @@
       return "";
     }
 
+    // ---------------- countdown ----------------
+    function renderCountdown() {
+      const ms = DEADLINE.getTime() - Date.now();
+      if (ms <= 0) {
+        countdownCardEl.innerHTML = `
+          <div class="card countdown-card">
+            <div class="countdown-label">സമർപ്പിക്കാനുള്ള സമയം കഴിഞ്ഞു</div>
+          </div>`;
+        return;
+      }
+      const s = Math.floor(ms / 1000);
+      const days = Math.floor(s / 86400);
+      const hours = Math.floor((s % 86400) / 3600);
+      const mins = Math.floor((s % 3600) / 60);
+      const secs = s % 60;
+      const pad = (n) => String(n).padStart(2, "0");
+      countdownCardEl.innerHTML = `
+        <div class="card countdown-card">
+          <div class="countdown-label">സമർപ്പിക്കാൻ ബാക്കിയുള്ള സമയം</div>
+          <div class="countdown-clock">
+            <div class="cd-unit"><span class="cd-num">${days}</span><span class="cd-label">ദിവസം</span></div>
+            <div class="cd-unit"><span class="cd-num">${pad(hours)}</span><span class="cd-label">മണിക്കൂർ</span></div>
+            <div class="cd-unit"><span class="cd-num">${pad(mins)}</span><span class="cd-label">മിനിറ്റ്</span></div>
+            <div class="cd-unit"><span class="cd-num">${pad(secs)}</span><span class="cd-label">സെക്കൻഡ്</span></div>
+          </div>
+        </div>`;
+    }
+    renderCountdown();
+    setInterval(renderCountdown, 1000);
+
+    // ---------------- names list (admin-controlled visibility) ----------------
     async function renderNames() {
+      if (!latestStatus.showNamesPublicly) {
+        listCardEl.style.display = "none";
+        return;
+      }
+      listCardEl.style.display = "";
+
       if (latestNames.length === 0) {
         namesListEl.innerHTML = '<p class="empty-msg">ഇതുവരെ പേരുകളൊന്നും നിർദ്ദേശിച്ചിട്ടില്ല. ആദ്യത്തെയാളാകൂ!</p>';
         return;
@@ -86,12 +133,12 @@
       if (latestStatus.isOpen) {
         statusBannerEl.innerHTML = `
           <div class="banner open">
-            സമർപ്പിക്കാനും വോട്ട് ചെയ്യാനും ഇപ്പോൾ സമയമുണ്ട്!<br>
+            സമർപ്പിക്കാൻ ഇപ്പോൾ സമയമുണ്ട്!<br>
             <span class="deadline">ഓഗസ്റ്റ് 20 · വൈകുന്നേരം 5 മണിക്ക് മുമ്പ്</span>
           </div>`;
         formCardEl.style.display = "";
       } else {
-        statusBannerEl.innerHTML = `<div class="banner closed">വോട്ടിംഗ് അവസാനിച്ചു.</div>`;
+        statusBannerEl.innerHTML = `<div class="banner closed">സമർപ്പിക്കൽ അവസാനിച്ചു.</div>`;
         formCardEl.style.display = "none";
       }
 
@@ -125,14 +172,15 @@
     formEl.addEventListener("submit", async (e) => {
       e.preventDefault();
       const text = inputEl.value;
-      if (!text.trim()) return;
+      const submitter = submitterInputEl.value;
+      if (!text.trim() || !submitter.trim()) return;
 
       submitBtnEl.disabled = true;
       formMsgEl.textContent = "";
       formMsgEl.className = "form-msg";
 
       try {
-        const result = await submitOrVoteName(text);
+        const result = await submitOrVoteName(text, submitter);
         inputEl.value = "";
         if (result.alreadyExisted) {
           formMsgEl.textContent = result.alreadyVoted

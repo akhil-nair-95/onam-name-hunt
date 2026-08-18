@@ -68,12 +68,18 @@ function normalize(text) {
  * exists — casts a vote for that existing one instead. Either way, the
  * current device's own vote is recorded as part of the same action.
  *
+ * submitterName is the suggester's own name (required, shown to the admin
+ * only) so the winner's suggester can actually be identified afterwards.
+ *
  * Returns { nameId, alreadyExisted, alreadyVoted }.
  */
-export async function submitOrVoteName(rawText) {
+export async function submitOrVoteName(rawText, rawSubmitterName) {
   const text = normalize(rawText);
+  const submitterName = normalize(rawSubmitterName || "");
   if (!text) throw new Error("EMPTY_NAME");
   if (text.length > 60) throw new Error("TOO_LONG");
+  if (!submitterName) throw new Error("EMPTY_SUBMITTER");
+  if (submitterName.length > 60) throw new Error("SUBMITTER_TOO_LONG");
 
   const uid = await getUid();
   const textLower = text.toLowerCase();
@@ -91,6 +97,7 @@ export async function submitOrVoteName(rawText) {
   const nameRef = await addDoc(collection(db, "names"), {
     text,
     textLower,
+    submitterName,
     votes: 0,
     submittedBy: uid,
     submittedAt: serverTimestamp(),
@@ -167,21 +174,27 @@ export async function getVotedSet(nameIds) {
 // Contest status
 // ---------------------------------------------------------------------------
 
+const DEFAULT_STATUS = { isOpen: true, showNamesPublicly: false, winnerNameId: null, winnerMethod: null };
+
 export function subscribeToStatus(cb) {
   return onSnapshot(STATUS_REF, (snap) => {
-    cb(snap.exists() ? snap.data() : { isOpen: true, winnerNameId: null, winnerMethod: null });
+    cb(snap.exists() ? { ...DEFAULT_STATUS, ...snap.data() } : DEFAULT_STATUS);
   });
 }
 
 export async function ensureStatusDoc() {
   const snap = await getDoc(STATUS_REF);
   if (!snap.exists()) {
-    await setDoc(STATUS_REF, { isOpen: true, winnerNameId: null, winnerMethod: null, decidedAt: null });
+    await setDoc(STATUS_REF, { ...DEFAULT_STATUS, decidedAt: null });
   }
 }
 
 export function setContestOpen(isOpen) {
   return updateDoc(STATUS_REF, { isOpen });
+}
+
+export function setNamesPublicVisibility(showNamesPublicly) {
+  return updateDoc(STATUS_REF, { showNamesPublicly });
 }
 
 export function declareWinner(nameId, method) {

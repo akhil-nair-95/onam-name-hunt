@@ -41,6 +41,20 @@
         </div>
       </section>
 
+      <section class="card">
+        <h2 class="list-title">
+          Public leaderboard
+          <span class="status-pill" id="visibilityPill"></span>
+        </h2>
+        <p style="font-size:14px;color:var(--ink-soft);margin-top:-6px">
+          When hidden, visitors only see the submission form — not the list of
+          names or vote counts. Turn this on once you want open voting.
+        </p>
+        <div class="action-row">
+          <button class="btn secondary" id="toggleVisibilityBtn"></button>
+        </div>
+      </section>
+
       <section class="card" id="winnerSection"></section>
 
       <section class="card">
@@ -65,7 +79,7 @@
     import {
       auth, adminSignIn, adminSignOut, onAuthChange,
       subscribeToNames, subscribeToStatus, ensureStatusDoc,
-      setContestOpen, declareWinner, resetContest, getAllNamesOnce
+      setContestOpen, setNamesPublicVisibility, declareWinner, resetContest, getAllNamesOnce
     } from "./app.js";
 
     const loginCard = document.getElementById("loginCard");
@@ -79,6 +93,8 @@
 
     const statusPill = document.getElementById("statusPill");
     const toggleOpenBtn = document.getElementById("toggleOpenBtn");
+    const visibilityPill = document.getElementById("visibilityPill");
+    const toggleVisibilityBtn = document.getElementById("toggleVisibilityBtn");
     const winnerSection = document.getElementById("winnerSection");
     const randomPickBtn = document.getElementById("randomPickBtn");
     const votesPickBtn = document.getElementById("votesPickBtn");
@@ -92,7 +108,7 @@
     }
 
     let latestNames = [];
-    let latestStatus = { isOpen: true, winnerNameId: null, winnerMethod: null };
+    let latestStatus = { isOpen: true, showNamesPublicly: false, winnerNameId: null, winnerMethod: null };
     let isAuthedAdmin = false;
 
     onAuthChange((user) => {
@@ -137,6 +153,12 @@
       statusPill.className = "status-pill " + (latestStatus.isOpen ? "open" : "closed");
       toggleOpenBtn.textContent = latestStatus.isOpen ? "Close submissions & voting" : "Reopen submissions & voting";
 
+      visibilityPill.textContent = latestStatus.showNamesPublicly ? "VISIBLE" : "HIDDEN";
+      visibilityPill.className = "status-pill " + (latestStatus.showNamesPublicly ? "open" : "closed");
+      toggleVisibilityBtn.textContent = latestStatus.showNamesPublicly
+        ? "Hide names & votes from visitors"
+        : "Show names & votes to visitors";
+
       if (latestStatus.winnerNameId) {
         const winner = latestNames.find((n) => n.id === latestStatus.winnerNameId);
         winnerSection.innerHTML = `
@@ -159,7 +181,10 @@
         adminNamesList.innerHTML = sorted.map((n, i) => `
           <div class="name-row">
             <span class="rank">${i + 1}</span>
-            <span class="text">${escapeHtml(n.text)}</span>
+            <span class="text">
+              ${escapeHtml(n.text)}
+              <span class="submitter-tag">— ${escapeHtml(n.submitterName || "unknown")}</span>
+            </span>
             <span class="vote-btn" style="pointer-events:none">👍 ${n.votes || 0}</span>
           </div>`).join("");
       }
@@ -169,6 +194,12 @@
       toggleOpenBtn.disabled = true;
       try { await setContestOpen(!latestStatus.isOpen); }
       finally { toggleOpenBtn.disabled = false; }
+    });
+
+    toggleVisibilityBtn.addEventListener("click", async () => {
+      toggleVisibilityBtn.disabled = true;
+      try { await setNamesPublicVisibility(!latestStatus.showNamesPublicly); }
+      finally { toggleVisibilityBtn.disabled = false; }
     });
 
     randomPickBtn.addEventListener("click", async () => {

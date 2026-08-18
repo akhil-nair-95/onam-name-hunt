@@ -5,21 +5,25 @@ rules_version = '2';
 //
 // Data model:
 //   /names/{nameId}
-//       text         string   — the submitted name, as typed
-//       textLower    string   — lowercased/trimmed, used for duplicate checks
-//       votes        number   — cached count of docs in the voters subcollection
-//       submittedBy  string   — uid of the person who submitted it
-//       submittedAt  timestamp
+//       text            string   — the submitted name, as typed
+//       textLower       string   — lowercased/trimmed, used for duplicate checks
+//       submitterName   string   — the person's own name, so the admin can
+//                                  tell who suggested the winning entry
+//       votes           number   — cached count of docs in the voters subcollection
+//       submittedBy     string   — uid of the person who submitted it
+//       submittedAt     timestamp
 //
 //   /names/{nameId}/voters/{uid}
 //       votedAt      timestamp
 //       (the mere existence of this doc means `uid` has voted for this name)
 //
 //   /contest/status   (single fixed doc)
-//       isOpen         boolean
-//       winnerNameId   string | null
-//       winnerMethod   'random' | 'votes' | null
-//       decidedAt      timestamp | null
+//       isOpen             boolean
+//       showNamesPublicly  boolean  — admin-controlled: whether the public
+//                                     page shows the list/leaderboard at all
+//       winnerNameId       string | null
+//       winnerMethod       'random' | 'votes' | null
+//       decidedAt          timestamp | null
 //
 // Auth model:
 //   - Every visitor is signed in anonymously (invisible, automatic) so we have
@@ -60,7 +64,10 @@ service cloud.firestore {
                     && request.resource.data.text is string
                     && request.resource.data.text.size() > 0
                     && request.resource.data.text.size() <= 60
-                    && request.resource.data.textLower is string;
+                    && request.resource.data.textLower is string
+                    && request.resource.data.submitterName is string
+                    && request.resource.data.submitterName.size() > 0
+                    && request.resource.data.submitterName.size() <= 60;
 
       // The only update ever allowed on a name doc is incrementing votes by
       // exactly 1 (done alongside creating a voter doc — see below). No
@@ -98,6 +105,7 @@ service cloud.firestore {
       // reset an existing contest.
       allow create: if isSignedIn()
                     && request.resource.data.isOpen == true
+                    && request.resource.data.showNamesPublicly is bool
                     && request.resource.data.winnerNameId == null
                     && request.resource.data.winnerMethod == null;
 

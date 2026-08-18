@@ -109,6 +109,45 @@ body{
   background:linear-gradient(180deg, var(--gold-500), var(--gold-700));
   color:var(--ink);
 }
+/* ---------- Countdown ---------- */
+.countdown-card{
+  text-align:center;
+  padding:18px 16px;
+}
+.countdown-label{
+  font-size:13.5px;
+  font-weight:600;
+  color:var(--ink-soft);
+  margin-bottom:10px;
+}
+.countdown-clock{
+  display:flex;
+  justify-content:center;
+  gap:10px;
+}
+.cd-unit{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  background:linear-gradient(180deg, var(--green-500), var(--green-700));
+  color:var(--parchment);
+  border-radius:10px;
+  padding:8px 12px;
+  min-width:56px;
+}
+.cd-num{
+  font-family:'Baloo Chettan 2', sans-serif;
+  font-weight:800;
+  font-size:22px;
+  font-variant-numeric: tabular-nums;
+}
+.cd-label{
+  font-size:10.5px;
+  font-weight:600;
+  opacity:0.9;
+  margin-top:2px;
+}
+
 .banner .deadline{
   font-family:'Baloo Chettan 2', sans-serif;
   font-weight:700;
@@ -143,11 +182,11 @@ body{
 /* ---------- Form ---------- */
 .submit-form{
   display:flex;
+  flex-direction:column;
   gap:10px;
-  flex-wrap:wrap;
 }
 .submit-form input[type="text"]{
-  flex:1 1 220px;
+  width:100%;
   font-family:inherit;
   font-size:16px;
   padding:13px 16px;
@@ -156,6 +195,7 @@ body{
   background:#fff;
   color:var(--ink);
 }
+.submit-form .btn{ align-self:flex-start; }
 .submit-form input[type="text"]:focus{
   outline:2px solid var(--gold-500);
   outline-offset:1px;
@@ -228,6 +268,12 @@ body{
   font-size:16px;
   min-width:0;
   overflow-wrap:anywhere;
+}
+.submitter-tag{
+  font-weight:500;
+  font-size:13px;
+  color:var(--ink-soft);
+  opacity:0.8;
 }
 .name-row .vote-btn{
   flex:none;
